@@ -96,82 +96,93 @@ class MultiProviderAPIManager: ObservableObject {
     // MARK: - Provider-Specific Implementations
     
     private func fetchOpenRouterUsage(apiKey: String, completion: @escaping (Result<UsageData, Error>) -> Void) {
-        // Demo mode: return mock data if API key looks like demo
-        let isDemoMode = apiKey.lowercased().contains("demo") || 
-                        apiKey.lowercased().contains("test") || 
-                        apiKey.count < 20 // Short keys are likely demo
-        
-        if isDemoMode {
-            let usage = UsageData(
-                provider: .openrouter,
-                tokensToday: 12_450,
-                tokensThisMonth: 245_890,
-                costThisMonth: 5.67,
-                remainingCredits: 10.00,
-                modelBreakdown: [
-                    ModelUsage(model: "gpt-4o", tokens: 5000, cost: 2.50),
-                    ModelUsage(model: "claude-3.5-sonnet", tokens: 7450, cost: 3.17)
-                ]
-            )
-            completion(.success(usage))
-            return
-        }
-        
         let url = URL(string: "\(APIProvider.openrouter.baseURL)/auth/key")!
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 10
+        
+        print("[OpenRouter] Fetching usage data...")
         
         URLSession.shared.dataTask(with: request) { data, response, error in
             if let error = error {
+                print("[OpenRouter] Network error: \(error.localizedDescription)")
                 completion(.failure(error))
                 return
             }
             
-            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200,
-                  let _ = data else {
+            guard let httpResponse = response as? HTTPURLResponse else {
+                print("[OpenRouter] Invalid response")
                 completion(.failure(NSError(domain: "OpenRouter", code: 500,
                     userInfo: [NSLocalizedDescriptionKey: "Invalid response"])))
                 return
             }
             
-            // TODO: Parse actual OpenRouter response
-            // For now, return mock data
-            let usage = UsageData(
-                provider: .openrouter,
-                tokensToday: 0,
-                tokensThisMonth: 0,
-                costThisMonth: 0.0,
-                remainingCredits: 0.0,
-                modelBreakdown: []
-            )
-            completion(.success(usage))
+            print("[OpenRouter] HTTP Status: \(httpResponse.statusCode)")
+            
+            guard httpResponse.statusCode == 200 else {
+                let errorMsg = httpResponse.statusCode == 401 ? "Invalid API key" : "HTTP \(httpResponse.statusCode)"
+                print("[OpenRouter] Error: \(errorMsg)")
+                completion(.failure(NSError(domain: "OpenRouter", code: httpResponse.statusCode,
+                    userInfo: [NSLocalizedDescriptionKey: errorMsg])))
+                return
+            }
+            
+            guard let data = data else {
+                print("[OpenRouter] No data received")
+                completion(.failure(NSError(domain: "OpenRouter", code: 500,
+                    userInfo: [NSLocalizedDescriptionKey: "No data received"])))
+                return
+            }
+            
+            // Print raw response for debugging
+            if let jsonString = String(data: data, encoding: .utf8) {
+                print("[OpenRouter] Response: \(jsonString)")
+            }
+            
+            do {
+                let response = try JSONDecoder().decode(OpenRouterKeyResponse.self, from: data)
+                let usage = self.convertOpenRouterResponse(response)
+                print("[OpenRouter] Success: \(usage.tokensToday) tokens today")
+                completion(.success(usage))
+            } catch {
+                print("[OpenRouter] Parse error: \(error)")
+                // Return empty data instead of failing
+                let emptyUsage = UsageData(
+                    provider: .openrouter,
+                    tokensToday: 0,
+                    tokensThisMonth: 0,
+                    costThisMonth: 0.0,
+                    remainingCredits: 0.0,
+                    modelBreakdown: []
+                )
+                completion(.success(emptyUsage))
+            }
         }.resume()
     }
     
+    private func convertOpenRouterResponse(_ response: OpenRouterKeyResponse) -> UsageData {
+        // Extract actual data from OpenRouter response
+        let limit = response.data?.limit ?? 0.0
+        let usage = response.data?.usage ?? 0.0
+        let remaining = max(0, limit - usage)
+        
+        // For now, we can't get daily breakdown from this endpoint
+        // Would need to call /api/v1/generation endpoint for detailed usage
+        return UsageData(
+            provider: .openrouter,
+            tokensToday: 0, // TODO: Need different endpoint
+            tokensThisMonth: Int(usage * 1000), // Rough estimate
+            costThisMonth: usage,
+            remainingCredits: remaining,
+            modelBreakdown: []
+        )
+    }
+    
     private func fetchOpenAIUsage(apiKey: String, completion: @escaping (Result<UsageData, Error>) -> Void) {
-        // Demo mode
-        let isDemoMode = apiKey.lowercased().contains("demo") || 
-                        apiKey.lowercased().contains("test") || 
-                        apiKey.count < 20
-        
-        if isDemoMode {
-            let usage = UsageData(
-                provider: .openai,
-                tokensToday: 8_920,
-                tokensThisMonth: 156_340,
-                costThisMonth: 3.21,
-                remainingCredits: 0.0,
-                modelBreakdown: [
-                    ModelUsage(model: "gpt-4o", tokens: 8920, cost: 3.21)
-                ]
-            )
-            completion(.success(usage))
-            return
-        }
-        
-        // OpenAI doesn't provide a direct usage API
-        // Would need to track via organization billing or usage endpoints
+        // OpenAI doesn't have a simple usage API
+        // Would need: https://api.openai.com/v1/organization/usage
+        print("[OpenAI] Usage API not implemented yet")
         let usage = UsageData(
             provider: .openai,
             tokensToday: 0,
@@ -184,28 +195,8 @@ class MultiProviderAPIManager: ObservableObject {
     }
     
     private func fetchAnthropicUsage(apiKey: String, completion: @escaping (Result<UsageData, Error>) -> Void) {
-        // Demo mode
-        let isDemoMode = apiKey.lowercased().contains("demo") || 
-                        apiKey.lowercased().contains("test") || 
-                        apiKey.count < 20
-        
-        if isDemoMode {
-            let usage = UsageData(
-                provider: .anthropic,
-                tokensToday: 4_560,
-                tokensThisMonth: 89_230,
-                costThisMonth: 2.10,
-                remainingCredits: 0.0,
-                modelBreakdown: [
-                    ModelUsage(model: "claude-3.5-sonnet", tokens: 4560, cost: 2.10)
-                ]
-            )
-            completion(.success(usage))
-            return
-        }
-        
-        // Anthropic API usage tracking
-        // TODO: Implement actual API call
+        // Anthropic doesn't have a usage API endpoint yet
+        print("[Anthropic] Usage API not available")
         let usage = UsageData(
             provider: .anthropic,
             tokensToday: 0,
@@ -218,28 +209,8 @@ class MultiProviderAPIManager: ObservableObject {
     }
     
     private func fetchGoogleUsage(apiKey: String, completion: @escaping (Result<UsageData, Error>) -> Void) {
-        // Demo mode
-        let isDemoMode = apiKey.lowercased().contains("demo") || 
-                        apiKey.lowercased().contains("test") || 
-                        apiKey.count < 20
-        
-        if isDemoMode {
-            let usage = UsageData(
-                provider: .google,
-                tokensToday: 15_230,
-                tokensThisMonth: 312_450,
-                costThisMonth: 0.0, // Google Gemini is free
-                remainingCredits: 0.0,
-                modelBreakdown: [
-                    ModelUsage(model: "gemini-2.0-flash", tokens: 15230, cost: 0.0)
-                ]
-            )
-            completion(.success(usage))
-            return
-        }
-        
-        // Google AI API usage tracking
-        // TODO: Implement actual API call
+        // Google Gemini is currently free, no usage API
+        print("[Google] Free tier - no usage tracking")
         let usage = UsageData(
             provider: .google,
             tokensToday: 0,
@@ -250,6 +221,33 @@ class MultiProviderAPIManager: ObservableObject {
         )
         completion(.success(usage))
     }
+}
+
+// MARK: - OpenRouter API Response Models
+
+struct OpenRouterKeyResponse: Codable {
+    let data: OpenRouterKeyData?
+}
+
+struct OpenRouterKeyData: Codable {
+    let label: String?
+    let usage: Double? // Total usage in dollars
+    let limit: Double? // Credit limit
+    let isFreeTier: Bool?
+    let rateLimit: OpenRouterRateLimit?
+    
+    enum CodingKeys: String, CodingKey {
+        case label
+        case usage
+        case limit
+        case isFreeTier = "is_free_tier"
+        case rateLimit = "rate_limit"
+    }
+}
+
+struct OpenRouterRateLimit: Codable {
+    let requests: Int?
+    let interval: String?
 }
 
 // MARK: - Keychain Helper
