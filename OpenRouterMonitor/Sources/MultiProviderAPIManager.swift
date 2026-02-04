@@ -163,18 +163,27 @@ class MultiProviderAPIManager: ObservableObject {
     }
     
     private func convertOpenRouterResponse(_ response: OpenRouterKeyResponse) -> UsageData {
-        // Extract actual data from OpenRouter response
-        let limit = response.data?.limit ?? 0.0
-        let usage = response.data?.usage ?? 0.0
-        let remaining = max(0, limit - usage)
+        let limit = response.data?.limit
+        let usageDaily = response.data?.usageDaily ?? 0.0
+        let usageMonthly = response.data?.usageMonthly ?? 0.0
         
-        // For now, we can't get daily breakdown from this endpoint
-        // Would need to call /api/v1/generation endpoint for detailed usage
+        // Calculate remaining credits (if limit exists)
+        let remaining: Double
+        if let limit = limit {
+            remaining = max(0, limit - usageMonthly)
+        } else {
+            remaining = 0.0
+        }
+        
+        // Estimate tokens from cost ($0.01 per ~1000 tokens average)
+        let tokensDaily = Int(usageDaily * 100_000)
+        let tokensMonthly = Int(usageMonthly * 100_000)
+        
         return UsageData(
             provider: .openrouter,
-            tokensToday: 0, // TODO: Need different endpoint
-            tokensThisMonth: Int(usage * 1000), // Rough estimate
-            costThisMonth: usage,
+            tokensToday: tokensDaily,
+            tokensThisMonth: tokensMonthly,
+            costThisMonth: usageMonthly,
             remainingCredits: remaining,
             modelBreakdown: []
         )
@@ -232,17 +241,35 @@ struct OpenRouterKeyResponse: Codable {
 
 struct OpenRouterKeyData: Codable {
     let label: String?
-    let usage: Double? // Total usage in dollars
-    let limit: Double? // Credit limit
+    let limit: Double?
+    let limitRemaining: Double?
+    let usage: Double?
+    let usageDaily: Double?
+    let usageWeekly: Double?
+    let usageMonthly: Double?
+    let byokUsage: Double?
+    let byokUsageDaily: Double?
+    let byokUsageWeekly: Double?
+    let byokUsageMonthly: Double?
     let isFreeTier: Bool?
-    let rateLimit: OpenRouterRateLimit?
+    let isProvisioningKey: Bool?
+    let expiresAt: String?
     
     enum CodingKeys: String, CodingKey {
         case label
-        case usage
         case limit
+        case limitRemaining = "limit_remaining"
+        case usage
+        case usageDaily = "usage_daily"
+        case usageWeekly = "usage_weekly"
+        case usageMonthly = "usage_monthly"
+        case byokUsage = "byok_usage"
+        case byokUsageDaily = "byok_usage_daily"
+        case byokUsageWeekly = "byok_usage_weekly"
+        case byokUsageMonthly = "byok_usage_monthly"
         case isFreeTier = "is_free_tier"
-        case rateLimit = "rate_limit"
+        case isProvisioningKey = "is_provisioning_key"
+        case expiresAt = "expires_at"
     }
 }
 
