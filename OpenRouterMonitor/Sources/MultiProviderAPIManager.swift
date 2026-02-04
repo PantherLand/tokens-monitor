@@ -19,14 +19,14 @@ class MultiProviderAPIManager: ObservableObject {
     // MARK: - API Key Management
     
     func getAPIKey(for provider: APIProvider) -> String? {
-        return KeychainHelper.load(service: keychainService, account: provider.rawValue)
+        return UserDefaults.standard.string(forKey: "apiKey_\(provider.rawValue)")
     }
     
     func setAPIKey(_ key: String?, for provider: APIProvider) {
         if let key = key, !key.isEmpty {
-            KeychainHelper.save(service: keychainService, account: provider.rawValue, data: key)
+            UserDefaults.standard.set(key, forKey: "apiKey_\(provider.rawValue)")
         } else {
-            KeychainHelper.delete(service: keychainService, account: provider.rawValue)
+            UserDefaults.standard.removeObject(forKey: "apiKey_\(provider.rawValue)")
         }
     }
     
@@ -96,13 +96,59 @@ class MultiProviderAPIManager: ObservableObject {
     // MARK: - Provider-Specific Implementations
     
     private func fetchOpenRouterUsage(apiKey: String, completion: @escaping (Result<UsageData, Error>) -> Void) {
+        // Fetch both endpoints for complete data
+        let group = DispatchGroup()
+        var usageResponse: OpenRouterUsageResponse?
+        var keyResponse: OpenRouterKeyResponse?
+        var lastError: Error?
+        
+        // Fetch usage details
+        group.enter()
+        fetchOpenRouterUsageEndpoint(apiKey: apiKey) { result in
+            switch result {
+            case .success(let response):
+                usageResponse = response
+            case .failure(let error):
+                lastError = error
+            }
+            group.leave()
+        }
+        
+        // Fetch key info (credits)
+        group.enter()
+        fetchOpenRouterKeyEndpoint(apiKey: apiKey) { result in
+            switch result {
+            case .success(let response):
+                keyResponse = response
+            case .failure(let error):
+                lastError = error
+            }
+            group.leave()
+        }
+        
+        group.notify(queue: .main) {
+            if let usage = usageResponse, let key = keyResponse {
+                let combined = self.combineOpenRouterData(usage: usage, key: key)
+                completion(.success(combined))
+            } else if let usage = usageResponse {
+                let data = self.convertOpenRouterUsageResponse(usage, credits: 0.0)
+                completion(.success(data))
+            } else if let error = lastError {
+                completion(.failure(error))
+            } else {
+                completion(.success(UsageData(provider: .openrouter)))
+            }
+        }
+    }
+    
+    private func fetchOpenRouterUsageEndpoint(apiKey: String, completion: @escaping (Result<OpenRouterUsageResponse, Error>) -> Void) {
         let url = URL(string: "\(APIProvider.openrouter.baseURL)/usage")!
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.timeoutInterval = 10
         
-        print("[OpenRouter] Fetching usage data from /usage endpoint...")
+        print("[OpenRouter] Fetching usage data...")
         
         URLSession.shared.dataTask(with: request) { data, response, error in
             if let error = error {
@@ -142,50 +188,94 @@ class MultiProviderAPIManager: ObservableObject {
             
             do {
                 let response = try JSONDecoder().decode(OpenRouterUsageResponse.self, from: data)
-                let usage = self.convertOpenRouterUsageResponse(response)
-                print("[OpenRouter] Success: $\(usage.costThisMonth) this month, \(usage.tokensToday) tokens today")
-                completion(.success(usage))
+                print("[OpenRouter /usage] Success")
+                completion(.success(response))
             } catch {
-                print("[OpenRouter] Parse error: \(error)")
-                // Try to decode as generic JSON to see structure
+                print("[OpenRouter /usage] Parse error: \(error)")
                 if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                    print("[OpenRouter] Response structure: \(json)")
+                    print("[OpenRouter /usage] Response: \(json)")
                 }
-                // Return empty data instead of failing
-                let emptyUsage = UsageData(
-                    provider: .openrouter,
-                    tokensToday: 0,
-                    tokensThisMonth: 0,
-                    costThisMonth: 0.0,
-                    remainingCredits: 0.0,
-                    modelBreakdown: []
-                )
-                completion(.success(emptyUsage))
+                completion(.failure(error))
             }
         }.resume()
     }
     
-    private func convertOpenRouterUsageResponse(_ response: OpenRouterUsageResponse) -> UsageData {
-        let totalCost = response.data?.totalCost ?? 0.0
+    private func fetchOpenRouterKeyEndpoint(apiKey: String, completion: @escaping (Result<OpenRouterKeyResponse, Error>) -> Void) {
+        let url = URL(string: "\(APIProvider.openrouter.baseURL)/auth/key")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 10
         
-        // Calculate tokens from cost (rough estimate: $0.01 per 1000 tokens average)
+        print("[OpenRouter] Fetching key info...")
+        
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                print("[OpenRouter /key] Error: \(error.localizedDescription)")
+                completion(.failure(error))
+                return
+            }
+            
+            guard let data = data else {
+                completion(.failure(NSError(domain: "OpenRouter", code: 500,
+                    userInfo: [NSLocalizedDescriptionKey: "No data"])))
+                return
+            }
+            
+            do {
+                let response = try JSONDecoder().decode(OpenRouterKeyResponse.self, from: data)
+                print("[OpenRouter /key] Success")
+                completion(.success(response))
+            } catch {
+                print("[OpenRouter /key] Parse error: \(error)")
+                completion(.failure(error))
+            }
+        }.resume()
+    }
+    
+    private func combineOpenRouterData(usage: OpenRouterUsageResponse, key: OpenRouterKeyResponse) -> UsageData {
+        let totalCost = usage.data?.totalCost ?? 0.0
+        let limit = key.data?.limit ?? 0.0
+        let remaining = max(0, limit - totalCost)
+        
         let estimatedTokens = Int(totalCost * 100_000)
         
-        // Get model breakdown
-        let modelBreakdown = (response.data?.usage ?? []).map { item in
+        let modelBreakdown = (usage.data?.usage ?? []).map { item in
             ModelUsage(
                 model: item.model ?? "unknown",
-                tokens: item.requests ?? 0,
+                tokens: item.tokens ?? (item.requests ?? 0) * 1000,
                 cost: item.cost ?? 0.0
             )
         }
         
         return UsageData(
             provider: .openrouter,
-            tokensToday: estimatedTokens, // Can't separate daily from monthly
+            tokensToday: estimatedTokens,
             tokensThisMonth: estimatedTokens,
             costThisMonth: totalCost,
-            remainingCredits: 0.0, // /usage doesn't return credits
+            remainingCredits: remaining,
+            modelBreakdown: modelBreakdown
+        )
+    }
+    
+    private func convertOpenRouterUsageResponse(_ response: OpenRouterUsageResponse, credits: Double) -> UsageData {
+        let totalCost = response.data?.totalCost ?? 0.0
+        let estimatedTokens = Int(totalCost * 100_000)
+        
+        let modelBreakdown = (response.data?.usage ?? []).map { item in
+            ModelUsage(
+                model: item.model ?? "unknown",
+                tokens: item.tokens ?? (item.requests ?? 0) * 1000,
+                cost: item.cost ?? 0.0
+            )
+        }
+        
+        return UsageData(
+            provider: .openrouter,
+            tokensToday: estimatedTokens,
+            tokensThisMonth: estimatedTokens,
+            costThisMonth: totalCost,
+            remainingCredits: credits,
             modelBreakdown: modelBreakdown
         )
     }
@@ -257,6 +347,24 @@ struct OpenRouterModelUsage: Codable {
     let tokens: Int?
 }
 
+struct OpenRouterKeyResponse: Codable {
+    let data: OpenRouterKeyData?
+}
+
+struct OpenRouterKeyData: Codable {
+    let label: String?
+    let usage: Double?
+    let limit: Double?
+    let isFreeTier: Bool?
+    
+    enum CodingKeys: String, CodingKey {
+        case label
+        case usage
+        case limit
+        case isFreeTier = "is_free_tier"
+    }
+}
+
 // MARK: - Keychain Helper
 
 class KeychainHelper {
@@ -267,7 +375,8 @@ class KeychainHelper {
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
-            kSecValueData as String: data
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
         ]
         
         SecItemDelete(query as CFDictionary)
@@ -279,7 +388,8 @@ class KeychainHelper {
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
-            kSecReturnData as String: true
+            kSecReturnData as String: true,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
         ]
         
         var result: AnyObject?
