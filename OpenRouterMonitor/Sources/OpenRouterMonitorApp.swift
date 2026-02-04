@@ -210,14 +210,31 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     index += 1
                     
                     // Usage details
-                    menu.insertItem(NSMenuItem(title: "  Today: \(formatTokens(usage.tokensToday)) tokens", action: nil, keyEquivalent: ""), at: index)
-                    index += 1
-                    menu.insertItem(NSMenuItem(title: "  Cost: $\(String(format: "%.2f", usage.costThisMonth))", action: nil, keyEquivalent: ""), at: index)
-                    index += 1
-                    
-                    if usage.remainingCredits > 0 {
-                        menu.insertItem(NSMenuItem(title: "  Credits: $\(String(format: "%.2f", usage.remainingCredits))", action: nil, keyEquivalent: ""), at: index)
+                    if provider == .google {
+                        // Google is free, show different message
+                        menu.insertItem(NSMenuItem(title: "  ✨ Free tier - unlimited", action: nil, keyEquivalent: ""), at: index)
                         index += 1
+                        menu.insertItem(NSMenuItem(title: "  No usage tracking available", action: nil, keyEquivalent: ""), at: index)
+                        index += 1
+                    } else if provider == .anthropic || provider == .openai {
+                        // These providers don't have public usage APIs
+                        menu.insertItem(NSMenuItem(title: "  ⚠️ No usage API available", action: nil, keyEquivalent: ""), at: index)
+                        index += 1
+                        menu.insertItem(NSMenuItem(title: "  Check console.anthropic.com", action: nil, keyEquivalent: ""), at: index)
+                        index += 1
+                    } else {
+                        // Normal display for providers with usage data
+                        if usage.tokensToday > 0 {
+                            menu.insertItem(NSMenuItem(title: "  Today: \(formatTokens(usage.tokensToday)) tokens", action: nil, keyEquivalent: ""), at: index)
+                            index += 1
+                        }
+                        menu.insertItem(NSMenuItem(title: "  Cost: $\(String(format: "%.2f", usage.costThisMonth))", action: nil, keyEquivalent: ""), at: index)
+                        index += 1
+                        
+                        if usage.remainingCredits > 0 {
+                            menu.insertItem(NSMenuItem(title: "  Credits: $\(String(format: "%.2f", usage.remainingCredits))", action: nil, keyEquivalent: ""), at: index)
+                            index += 1
+                        }
                     }
                     
                     // Separator between providers (but not after the last one)
