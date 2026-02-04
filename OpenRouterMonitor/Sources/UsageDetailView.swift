@@ -143,7 +143,6 @@ struct UsageDetailView: View {
         switch provider {
         case .openrouter: return "arrow.triangle.swap"
         case .openai: return "brain"
-        case .anthropic: return "cpu"
         case .google: return "sparkles"
         }
     }
@@ -152,7 +151,6 @@ struct UsageDetailView: View {
         switch provider {
         case .openrouter: return .blue
         case .openai: return .green
-        case .anthropic: return .orange
         case .google: return .red
         }
     }

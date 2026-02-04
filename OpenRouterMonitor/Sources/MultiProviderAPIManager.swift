@@ -87,8 +87,6 @@ class MultiProviderAPIManager: ObservableObject {
             fetchOpenRouterUsage(apiKey: apiKey, completion: completion)
         case .openai:
             fetchOpenAIUsage(apiKey: apiKey, completion: completion)
-        case .anthropic:
-            fetchAnthropicUsage(apiKey: apiKey, completion: completion)
         case .google:
             fetchGoogleUsage(apiKey: apiKey, completion: completion)
         }
@@ -190,36 +188,177 @@ class MultiProviderAPIManager: ObservableObject {
     }
     
     private func fetchOpenAIUsage(apiKey: String, completion: @escaping (Result<UsageData, Error>) -> Void) {
-        // OpenAI doesn't have a simple usage API
-        // Would need: https://api.openai.com/v1/organization/usage
-        print("[OpenAI] Usage API not implemented yet")
-        let usage = UsageData(
-            provider: .openai,
-            tokensToday: 0,
-            tokensThisMonth: 0,
-            costThisMonth: 0.0,
-            remainingCredits: 0.0,
-            modelBreakdown: []
-        )
-        completion(.success(usage))
+        // Best-effort implementation using OpenAI billing endpoints.
+        // Note: this returns cost (USD). We estimate tokens from cost for a consistent UI.
+        // Endpoints (legacy but widely used):
+        // - /v1/dashboard/billing/usage?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD
+        // - /v1/dashboard/billing/credit_grants
+        print("[OpenAI] Fetching billing usage...")
+
+        let calendar = Calendar(identifier: .gregorian)
+        let now = Date()
+        let startOfToday = calendar.startOfDay(for: now)
+
+        // Start of month
+        let comps = calendar.dateComponents([.year, .month], from: now)
+        let startOfMonth = calendar.date(from: comps) ?? startOfToday
+
+        // Billing API uses inclusive dates; using end_date = tomorrow keeps 'today' included.
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: startOfToday) ?? now
+
+        let df = DateFormatter()
+        df.calendar = calendar
+        df.locale = Locale(identifier: "en_US_POSIX")
+        df.timeZone = TimeZone(secondsFromGMT: 0)
+        df.dateFormat = "yyyy-MM-dd"
+
+        let todayStart = df.string(from: startOfToday)
+        let tomorrowStr = df.string(from: tomorrow)
+        let monthStart = df.string(from: startOfMonth)
+
+        let group = DispatchGroup()
+        var todayCostUSD: Double = 0.0
+        var monthCostUSD: Double = 0.0
+        var remainingUSD: Double = 0.0
+        var lastErr: Error?
+
+        group.enter()
+        fetchOpenAIBillingUsage(apiKey: apiKey, startDate: todayStart, endDate: tomorrowStr) { result in
+            switch result {
+            case .success(let cost):
+                todayCostUSD = cost
+            case .failure(let err):
+                lastErr = err
+            }
+            group.leave()
+        }
+
+        group.enter()
+        fetchOpenAIBillingUsage(apiKey: apiKey, startDate: monthStart, endDate: tomorrowStr) { result in
+            switch result {
+            case .success(let cost):
+                monthCostUSD = cost
+            case .failure(let err):
+                lastErr = err
+            }
+            group.leave()
+        }
+
+        group.enter()
+        fetchOpenAICreditGrants(apiKey: apiKey) { result in
+            switch result {
+            case .success(let remaining):
+                remainingUSD = remaining
+            case .failure(let err):
+                // Credits endpoint may be disabled for some accounts; don't fail overall.
+                print("[OpenAI] Credit grants unavailable: \(err.localizedDescription)")
+            }
+            group.leave()
+        }
+
+        group.notify(queue: .global()) {
+            // Estimate tokens from cost ($0.01 per ~1K tokens average => $1 per ~100K tokens)
+            let estTokensToday = Int(todayCostUSD * 100_000)
+            let estTokensMonth = Int(monthCostUSD * 100_000)
+
+            let usage = UsageData(
+                provider: .openai,
+                tokensToday: estTokensToday,
+                tokensThisMonth: estTokensMonth,
+                costThisMonth: monthCostUSD,
+                remainingCredits: remainingUSD,
+                modelBreakdown: []
+            )
+
+            if let lastErr = lastErr {
+                print("[OpenAI] Partial error: \(lastErr.localizedDescription)")
+            }
+            completion(.success(usage))
+        }
     }
-    
-    private func fetchAnthropicUsage(apiKey: String, completion: @escaping (Result<UsageData, Error>) -> Void) {
-        // Anthropic doesn't have a usage API endpoint yet
-        print("[Anthropic] Usage API not available")
-        let usage = UsageData(
-            provider: .anthropic,
-            tokensToday: 0,
-            tokensThisMonth: 0,
-            costThisMonth: 0.0,
-            remainingCredits: 0.0,
-            modelBreakdown: []
-        )
-        completion(.success(usage))
+
+    private func fetchOpenAIBillingUsage(apiKey: String, startDate: String, endDate: String, completion: @escaping (Result<Double, Error>) -> Void) {
+        var comps = URLComponents(string: "https://api.openai.com/v1/dashboard/billing/usage")
+        comps?.queryItems = [
+            URLQueryItem(name: "start_date", value: startDate),
+            URLQueryItem(name: "end_date", value: endDate)
+        ]
+        guard let url = comps?.url else {
+            completion(.failure(NSError(domain: "OpenAI", code: 0, userInfo: [NSLocalizedDescriptionKey: "Invalid billing usage URL"])))
+            return
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 10
+
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                completion(.failure(error))
+                return
+            }
+            guard let http = response as? HTTPURLResponse else {
+                completion(.failure(NSError(domain: "OpenAI", code: 500, userInfo: [NSLocalizedDescriptionKey: "Invalid response"])))
+                return
+            }
+            guard http.statusCode == 200 else {
+                let msg = http.statusCode == 401 ? "Invalid API key" : "HTTP \(http.statusCode)"
+                completion(.failure(NSError(domain: "OpenAI", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: msg])))
+                return
+            }
+            guard let data = data else {
+                completion(.failure(NSError(domain: "OpenAI", code: 500, userInfo: [NSLocalizedDescriptionKey: "No data"])))
+                return
+            }
+
+            do {
+                let decoded = try JSONDecoder().decode(OpenAIBillingUsageResponse.self, from: data)
+                // total_usage is in cents
+                completion(.success((decoded.totalUsage ?? 0.0) / 100.0))
+            } catch {
+                completion(.failure(error))
+            }
+        }.resume()
     }
-    
+
+    private func fetchOpenAICreditGrants(apiKey: String, completion: @escaping (Result<Double, Error>) -> Void) {
+        let url = URL(string: "https://api.openai.com/v1/dashboard/billing/credit_grants")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 10
+
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                completion(.failure(error))
+                return
+            }
+            guard let http = response as? HTTPURLResponse else {
+                completion(.failure(NSError(domain: "OpenAI", code: 500, userInfo: [NSLocalizedDescriptionKey: "Invalid response"])))
+                return
+            }
+            guard http.statusCode == 200 else {
+                let msg = http.statusCode == 401 ? "Invalid API key" : "HTTP \(http.statusCode)"
+                completion(.failure(NSError(domain: "OpenAI", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: msg])))
+                return
+            }
+            guard let data = data else {
+                completion(.failure(NSError(domain: "OpenAI", code: 500, userInfo: [NSLocalizedDescriptionKey: "No data"])))
+                return
+            }
+
+            do {
+                let decoded = try JSONDecoder().decode(OpenAICreditGrantsResponse.self, from: data)
+                completion(.success(decoded.totalAvailable ?? 0.0))
+            } catch {
+                completion(.failure(error))
+            }
+        }.resume()
+    }
+
     private func fetchGoogleUsage(apiKey: String, completion: @escaping (Result<UsageData, Error>) -> Void) {
-        // Google Gemini is currently free, no usage API
+        // Google Gemini is currently free (for many users/tiers), and there's no simple public usage API here.
         print("[Google] Free tier - no usage tracking")
         let usage = UsageData(
             provider: .google,
@@ -230,6 +369,24 @@ class MultiProviderAPIManager: ObservableObject {
             modelBreakdown: []
         )
         completion(.success(usage))
+    }
+}
+
+// MARK: - OpenAI Billing Response Models
+
+private struct OpenAIBillingUsageResponse: Codable {
+    let totalUsage: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case totalUsage = "total_usage"
+    }
+}
+
+private struct OpenAICreditGrantsResponse: Codable {
+    let totalAvailable: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case totalAvailable = "total_available"
     }
 }
 

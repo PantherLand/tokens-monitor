@@ -131,7 +131,6 @@ struct SettingsView: View {
         switch provider {
         case .openrouter: return "arrow.triangle.swap"
         case .openai: return "brain"
-        case .anthropic: return "cpu"
         case .google: return "sparkles"
         }
     }
@@ -140,7 +139,6 @@ struct SettingsView: View {
         switch provider {
         case .openrouter: return .blue
         case .openai: return .green
-        case .anthropic: return .orange
         case .google: return .red
         }
     }
@@ -151,8 +149,6 @@ struct SettingsView: View {
             return "Get your key at openrouter.ai/keys (starts with sk-or-v1-...)"
         case .openai:
             return "Get your key at platform.openai.com/api-keys (starts with sk-...)"
-        case .anthropic:
-            return "Get your key at console.anthropic.com (starts with sk-ant-...)"
         case .google:
             return "Get your key at makersuite.google.com/app/apikey"
         }

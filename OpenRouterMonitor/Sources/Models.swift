@@ -12,7 +12,6 @@ import Foundation
 enum APIProvider: String, CaseIterable, Codable {
     case openrouter = "OpenRouter"
     case openai = "OpenAI"
-    case anthropic = "Anthropic (Claude)"
     case google = "Google (Gemini)"
     
     var displayName: String {
@@ -25,8 +24,6 @@ enum APIProvider: String, CaseIterable, Codable {
             return "https://openrouter.ai/api/v1"
         case .openai:
             return "https://api.openai.com/v1"
-        case .anthropic:
-            return "https://api.anthropic.com/v1"
         case .google:
             return "https://generativelanguage.googleapis.com/v1"
         }

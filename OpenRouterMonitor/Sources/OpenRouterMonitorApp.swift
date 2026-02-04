@@ -113,7 +113,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func showAbout() {
         let alert = NSAlert()
         alert.messageText = "Token Monitor"
-        alert.informativeText = "Multi-provider API usage monitor\n\nSupports: OpenRouter, OpenAI, Anthropic, Google\n\nVersion: 1.0.0"
+        alert.informativeText = "Multi-provider API usage monitor\n\nSupports: OpenRouter, OpenAI, Google\n\nVersion: 1.0.0"
         alert.alertStyle = .informational
         alert.addButton(withTitle: "OK")
         alert.addButton(withTitle: "GitHub")
@@ -211,16 +211,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     
                     // Usage details
                     if provider == .google {
-                        // Google is free, show different message
-                        menu.insertItem(NSMenuItem(title: "  ✨ Free tier - unlimited", action: nil, keyEquivalent: ""), at: index)
+                        // Google: free tier (no usage tracking)
+                        menu.insertItem(NSMenuItem(title: "  ✨ Free tier", action: nil, keyEquivalent: ""), at: index)
                         index += 1
-                        menu.insertItem(NSMenuItem(title: "  No usage tracking available", action: nil, keyEquivalent: ""), at: index)
-                        index += 1
-                    } else if provider == .anthropic || provider == .openai {
-                        // These providers don't have public usage APIs
-                        menu.insertItem(NSMenuItem(title: "  ⚠️ No usage API available", action: nil, keyEquivalent: ""), at: index)
-                        index += 1
-                        menu.insertItem(NSMenuItem(title: "  Check console.anthropic.com", action: nil, keyEquivalent: ""), at: index)
+                        menu.insertItem(NSMenuItem(title: "  No usage tracking (free)", action: nil, keyEquivalent: ""), at: index)
                         index += 1
                     } else {
                         // Normal display for providers with usage data
