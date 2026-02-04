@@ -210,9 +210,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     index += 1
                     
                     // Usage details
-                    menu.insertItem(NSMenuItem(title: "  Today: \(formatTokens(usage.tokensToday))", action: nil, keyEquivalent: ""), at: index)
+                    menu.insertItem(NSMenuItem(title: "  Today: \(formatTokens(usage.tokensToday)) tokens", action: nil, keyEquivalent: ""), at: index)
                     index += 1
-                    menu.insertItem(NSMenuItem(title: "  Month: $\(String(format: "%.2f", usage.costThisMonth))", action: nil, keyEquivalent: ""), at: index)
+                    menu.insertItem(NSMenuItem(title: "  Cost: $\(String(format: "%.2f", usage.costThisMonth))", action: nil, keyEquivalent: ""), at: index)
                     index += 1
                     
                     if usage.remainingCredits > 0 {
