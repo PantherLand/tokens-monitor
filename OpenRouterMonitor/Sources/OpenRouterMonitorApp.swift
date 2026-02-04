@@ -22,14 +22,15 @@ struct OpenRouterMonitorApp: App {
 class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem?
     var apiManager: MultiProviderAPIManager?
-    var settingsWindowController: NSWindowController? // Keep reference to prevent deallocation
-    var detailWindowController: NSWindowController? // Detail view window
+    var settingsWindowController: NSWindowController?
+    var detailWindowController: NSWindowController?
+    
+    // Track menu item count to avoid duplication
+    private let fixedMenuItemsCount = 5 // Refresh, Settings, separator, About, Quit
     
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Hide from Dock
         NSApp.setActivationPolicy(.accessory)
         
-        // Create menubar icon
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         
         if let button = statusItem?.button {
@@ -38,16 +39,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             button.target = self
         }
         
-        // Initialize API Manager
         apiManager = MultiProviderAPIManager()
-        
-        // Build menu
         constructMenu()
-        
-        // Start periodic refresh
         startPeriodicRefresh()
         
-        // Listen for settings changes
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(settingsChanged),
@@ -59,7 +54,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func constructMenu() {
         let menu = NSMenu()
         
-        // Usage display
+        // Initial placeholder (will be replaced by actual data)
         menu.addItem(NSMenuItem(title: "Loading...", action: nil, keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
         
@@ -97,10 +92,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     @objc func openSettings() {
-        // Close existing settings window if any
         settingsWindowController?.close()
         
-        // Create new settings window
         let settingsView = SettingsView()
         let hostingController = NSHostingController(rootView: settingsView)
         
@@ -113,7 +106,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         settingsWindowController = NSWindowController(window: window)
         settingsWindowController?.showWindow(nil)
         
-        // Bring to front
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
     }
@@ -166,21 +158,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     @objc func settingsChanged() {
-        // Restart refresh timer with new interval
         startPeriodicRefresh()
-        // Immediate refresh
         updateUsageDisplay()
     }
     
     func startPeriodicRefresh() {
         let interval = UserDefaults.standard.double(forKey: "refreshInterval")
-        let refreshInterval = interval > 0 ? interval * 60 : 300 // default 5 minutes
+        let refreshInterval = interval > 0 ? interval * 60 : 300
         
         Timer.scheduledTimer(withTimeInterval: refreshInterval, repeats: true) { _ in
             self.updateUsageDisplay()
         }
         
-        // Immediate refresh
         updateUsageDisplay()
     }
     
@@ -195,8 +184,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func updateMenuWithUsage(_ result: Result<[APIProvider: UsageData], Error>) {
         guard let menu = statusItem?.menu else { return }
         
-        // Remove old usage items
-        while menu.items.count > 0 && menu.items[0].action == nil {
+        // Remove ALL dynamic items (everything before the fixed items at the bottom)
+        // Fixed items: Refresh, Settings, separator, About, Quit = 5 items
+        while menu.items.count > fixedMenuItemsCount {
             menu.removeItem(at: 0)
         }
         
@@ -208,8 +198,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             } else {
                 var index = 0
                 for (provider, usage) in usageData.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
-                    // Provider header - clickable to show details
-                    let headerItem = NSMenuItem(title: "[\(provider.displayName)] - View Details", action: #selector(showProviderDetail(_:)), keyEquivalent: "")
+                    // Provider header
+                    let headerItem = NSMenuItem(title: "[\(provider.displayName)]", action: #selector(showProviderDetail(_:)), keyEquivalent: "")
                     headerItem.target = self
                     headerItem.representedObject = ["provider": provider, "usage": usage] as [String : Any]
                     headerItem.attributedTitle = NSAttributedString(
@@ -230,23 +220,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         index += 1
                     }
                     
-                    // Separator between providers
-                    if index < usageData.count * 4 {
-                        menu.insertItem(NSMenuItem.separator(), at: index)
-                        index += 1
-                    }
+                    // Separator between providers (but not after the last one)
+                    menu.insertItem(NSMenuItem.separator(), at: index)
+                    index += 1
                 }
                 
                 // Update menubar button
                 let totalTokens = usageData.values.reduce(0) { $0 + $1.tokensToday }
                 if let button = statusItem?.button {
-                    button.title = " \(formatTokens(totalTokens, short: true))"
+                    button.title = totalTokens > 0 ? " \(formatTokens(totalTokens, short: true))" : ""
                 }
             }
             
         case .failure(let error):
             menu.insertItem(NSMenuItem(title: "Error: \(error.localizedDescription)", action: nil, keyEquivalent: ""), at: 0)
             menu.insertItem(NSMenuItem(title: "→ Check Settings", action: nil, keyEquivalent: ""), at: 1)
+            menu.insertItem(NSMenuItem.separator(), at: 2)
         }
     }
     

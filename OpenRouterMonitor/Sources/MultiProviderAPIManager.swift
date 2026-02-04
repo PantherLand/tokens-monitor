@@ -96,6 +96,23 @@ class MultiProviderAPIManager: ObservableObject {
     // MARK: - Provider-Specific Implementations
     
     private func fetchOpenRouterUsage(apiKey: String, completion: @escaping (Result<UsageData, Error>) -> Void) {
+        // Demo mode: return mock data if API key looks like demo
+        if apiKey.contains("demo") || apiKey.contains("test") {
+            let usage = UsageData(
+                provider: .openrouter,
+                tokensToday: 12_450,
+                tokensThisMonth: 245_890,
+                costThisMonth: 5.67,
+                remainingCredits: 10.00,
+                modelBreakdown: [
+                    ModelUsage(model: "gpt-4o", tokens: 5000, cost: 2.50),
+                    ModelUsage(model: "claude-3.5-sonnet", tokens: 7450, cost: 3.17)
+                ]
+            )
+            completion(.success(usage))
+            return
+        }
+        
         let url = URL(string: "\(APIProvider.openrouter.baseURL)/auth/key")!
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
@@ -129,6 +146,22 @@ class MultiProviderAPIManager: ObservableObject {
     }
     
     private func fetchOpenAIUsage(apiKey: String, completion: @escaping (Result<UsageData, Error>) -> Void) {
+        // Demo mode
+        if apiKey.contains("demo") || apiKey.contains("test") {
+            let usage = UsageData(
+                provider: .openai,
+                tokensToday: 8_920,
+                tokensThisMonth: 156_340,
+                costThisMonth: 3.21,
+                remainingCredits: 0.0,
+                modelBreakdown: [
+                    ModelUsage(model: "gpt-4o", tokens: 8920, cost: 3.21)
+                ]
+            )
+            completion(.success(usage))
+            return
+        }
+        
         // OpenAI doesn't provide a direct usage API
         // Would need to track via organization billing or usage endpoints
         let usage = UsageData(
@@ -143,6 +176,22 @@ class MultiProviderAPIManager: ObservableObject {
     }
     
     private func fetchAnthropicUsage(apiKey: String, completion: @escaping (Result<UsageData, Error>) -> Void) {
+        // Demo mode
+        if apiKey.contains("demo") || apiKey.contains("test") {
+            let usage = UsageData(
+                provider: .anthropic,
+                tokensToday: 4_560,
+                tokensThisMonth: 89_230,
+                costThisMonth: 2.10,
+                remainingCredits: 0.0,
+                modelBreakdown: [
+                    ModelUsage(model: "claude-3.5-sonnet", tokens: 4560, cost: 2.10)
+                ]
+            )
+            completion(.success(usage))
+            return
+        }
+        
         // Anthropic API usage tracking
         // TODO: Implement actual API call
         let usage = UsageData(
@@ -157,6 +206,22 @@ class MultiProviderAPIManager: ObservableObject {
     }
     
     private func fetchGoogleUsage(apiKey: String, completion: @escaping (Result<UsageData, Error>) -> Void) {
+        // Demo mode
+        if apiKey.contains("demo") || apiKey.contains("test") {
+            let usage = UsageData(
+                provider: .google,
+                tokensToday: 15_230,
+                tokensThisMonth: 312_450,
+                costThisMonth: 0.0, // Google Gemini is free
+                remainingCredits: 0.0,
+                modelBreakdown: [
+                    ModelUsage(model: "gemini-2.0-flash", tokens: 15230, cost: 0.0)
+                ]
+            )
+            completion(.success(usage))
+            return
+        }
+        
         // Google AI API usage tracking
         // TODO: Implement actual API call
         let usage = UsageData(
