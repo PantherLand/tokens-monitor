@@ -19,14 +19,15 @@ class MultiProviderAPIManager: ObservableObject {
     // MARK: - API Key Management
     
     func getAPIKey(for provider: APIProvider) -> String? {
-        return KeychainHelper.load(service: keychainService, account: provider.rawValue)
+        // Use UserDefaults instead of Keychain to avoid repeated password prompts
+        return UserDefaults.standard.string(forKey: "apiKey_\(provider.rawValue)")
     }
     
     func setAPIKey(_ key: String?, for provider: APIProvider) {
         if let key = key, !key.isEmpty {
-            KeychainHelper.save(service: keychainService, account: provider.rawValue, data: key)
+            UserDefaults.standard.set(key, forKey: "apiKey_\(provider.rawValue)")
         } else {
-            KeychainHelper.delete(service: keychainService, account: provider.rawValue)
+            UserDefaults.standard.removeObject(forKey: "apiKey_\(provider.rawValue)")
         }
     }
     
