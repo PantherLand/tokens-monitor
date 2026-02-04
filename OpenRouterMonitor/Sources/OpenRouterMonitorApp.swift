@@ -2,10 +2,11 @@
 //  OpenRouterMonitorApp.swift
 //  OpenRouterMonitor
 //
-//  Created on 2026-02-04
+//  Multi-provider token usage monitor
 //
 
 import SwiftUI
+import AppKit
 
 @main
 struct OpenRouterMonitorApp: App {
@@ -20,60 +21,73 @@ struct OpenRouterMonitorApp: App {
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem?
-    var popover: NSPopover?
-    var apiManager: OpenRouterAPIManager?
+    var apiManager: MultiProviderAPIManager?
+    var settingsWindowController: NSWindowController? // Keep reference to prevent deallocation
     
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // 创建菜单栏图标
+        // Hide from Dock
+        NSApp.setActivationPolicy(.accessory)
+        
+        // Create menubar icon
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         
         if let button = statusItem?.button {
-            button.image = NSImage(systemSymbolName: "chart.bar.fill", accessibilityDescription: "OpenRouter Monitor")
-            button.action = #selector(togglePopover)
+            button.image = NSImage(systemName: "chart.bar.fill", accessibilityDescription: "Token Monitor")
+            button.action = #selector(showMenu)
+            button.target = self
         }
         
-        // 初始化 API Manager
-        apiManager = OpenRouterAPIManager()
+        // Initialize API Manager
+        apiManager = MultiProviderAPIManager()
         
-        // 构建菜单
+        // Build menu
         constructMenu()
         
-        // 开始定时刷新
+        // Start periodic refresh
         startPeriodicRefresh()
-    }
-    
-    @objc func togglePopover() {
-        if let button = statusItem?.button {
-            if let popover = popover, popover.isShown {
-                popover.performClose(nil)
-            } else {
-                showMenu()
-            }
-        }
+        
+        // Listen for settings changes
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(settingsChanged),
+            name: NSNotification.Name("SettingsChanged"),
+            object: nil
+        )
     }
     
     func constructMenu() {
         let menu = NSMenu()
         
-        // Token 使用量显示
-        menu.addItem(NSMenuItem(title: "正在加载...", action: nil, keyEquivalent: ""))
+        // Usage display
+        menu.addItem(NSMenuItem(title: "Loading...", action: nil, keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
         
-        // 立即刷新
-        menu.addItem(NSMenuItem(title: "立即刷新", action: #selector(refreshNow), keyEquivalent: "r"))
+        // Refresh
+        let refreshItem = NSMenuItem(title: "Refresh Now", action: #selector(refreshNow), keyEquivalent: "r")
+        refreshItem.target = self
+        menu.addItem(refreshItem)
         
-        // 设置
-        menu.addItem(NSMenuItem(title: "设置...", action: #selector(openSettings), keyEquivalent: ","))
+        // Settings
+        let settingsItem = NSMenuItem(title: "Settings...", action: #selector(openSettings), keyEquivalent: ",")
+        settingsItem.target = self
+        menu.addItem(settingsItem)
         
         menu.addItem(NSMenuItem.separator())
         
-        // 退出
-        menu.addItem(NSMenuItem(title: "退出", action: #selector(quit), keyEquivalent: "q"))
+        // About
+        let aboutItem = NSMenuItem(title: "About", action: #selector(showAbout), keyEquivalent: "")
+        aboutItem.target = self
+        menu.addItem(aboutItem)
+        
+        // Quit
+        let quitItem = NSMenuItem(title: "Quit", action: #selector(quit), keyEquivalent: "q")
+        quitItem.target = self
+        menu.addItem(quitItem)
         
         statusItem?.menu = menu
     }
     
-    func showMenu() {
+    @objc func showMenu() {
         statusItem?.menu?.popUp(positioning: nil, at: NSPoint(x: 0, y: 0), in: statusItem?.button)
     }
     
@@ -82,62 +96,143 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     @objc func openSettings() {
-        let settingsWindow = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
-            styleMask: [.titled, .closable],
-            backing: .buffered,
-            defer: false
-        )
-        settingsWindow.center()
-        settingsWindow.title = "OpenRouter Monitor 设置"
-        settingsWindow.contentView = NSHostingView(rootView: SettingsView())
-        settingsWindow.makeKeyAndOrderFront(nil)
+        // Close existing settings window if any
+        settingsWindowController?.close()
+        
+        // Create new settings window
+        let settingsView = SettingsView()
+        let hostingController = NSHostingController(rootView: settingsView)
+        
+        let window = NSWindow(contentViewController: hostingController)
+        window.title = "Token Monitor Settings"
+        window.styleMask = [.titled, .closable, .miniaturizable]
+        window.center()
+        window.setFrameAutosaveName("SettingsWindow")
+        
+        settingsWindowController = NSWindowController(window: window)
+        settingsWindowController?.showWindow(nil)
+        
+        // Bring to front
         NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+    }
+    
+    @objc func showAbout() {
+        let alert = NSAlert()
+        alert.messageText = "Token Monitor"
+        alert.informativeText = "Multi-provider API usage monitor\n\nSupports: OpenRouter, OpenAI, Anthropic, Google\n\nVersion: 1.0.0"
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: "GitHub")
+        
+        let response = alert.runModal()
+        if response == .alertSecondButtonReturn {
+            if let url = URL(string: "https://github.com/PantherLand/tokens-monitor") {
+                NSWorkspace.shared.open(url)
+            }
+        }
     }
     
     @objc func quit() {
         NSApplication.shared.terminate(nil)
     }
     
+    @objc func settingsChanged() {
+        // Restart refresh timer with new interval
+        startPeriodicRefresh()
+        // Immediate refresh
+        updateUsageDisplay()
+    }
+    
     func startPeriodicRefresh() {
-        // 每5分钟刷新一次
-        Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { _ in
+        let interval = UserDefaults.standard.double(forKey: "refreshInterval")
+        let refreshInterval = interval > 0 ? interval * 60 : 300 // default 5 minutes
+        
+        Timer.scheduledTimer(withTimeInterval: refreshInterval, repeats: true) { _ in
             self.updateUsageDisplay()
         }
         
-        // 立即刷新一次
+        // Immediate refresh
         updateUsageDisplay()
     }
     
     func updateUsageDisplay() {
-        apiManager?.fetchUsage { result in
+        apiManager?.fetchAllUsage { [weak self] result in
             DispatchQueue.main.async {
-                self.updateMenuWithUsage(result)
+                self?.updateMenuWithUsage(result)
             }
         }
     }
     
-    func updateMenuWithUsage(_ result: Result<UsageData, Error>) {
+    func updateMenuWithUsage(_ result: Result<[APIProvider: UsageData], Error>) {
         guard let menu = statusItem?.menu else { return }
         
-        // 移除旧的使用量显示项
+        // Remove old usage items
         while menu.items.count > 0 && menu.items[0].action == nil {
             menu.removeItem(at: 0)
         }
         
         switch result {
-        case .success(let usage):
-            menu.insertItem(NSMenuItem(title: "今日使用: \(usage.tokensToday.formatted()) tokens", action: nil, keyEquivalent: ""), at: 0)
-            menu.insertItem(NSMenuItem(title: "本月费用: $\(String(format: "%.2f", usage.costThisMonth))", action: nil, keyEquivalent: ""), at: 1)
-            menu.insertItem(NSMenuItem(title: "剩余额度: $\(String(format: "%.2f", usage.remainingCredits))", action: nil, keyEquivalent: ""), at: 2)
-            
-            // 更新菜单栏图标显示
-            if let button = statusItem?.button {
-                button.title = " \(usage.tokensToday / 1000)K"
+        case .success(let usageData):
+            if usageData.isEmpty {
+                menu.insertItem(NSMenuItem(title: "No API keys configured", action: nil, keyEquivalent: ""), at: 0)
+                menu.insertItem(NSMenuItem(title: "→ Click Settings to add", action: nil, keyEquivalent: ""), at: 1)
+            } else {
+                var index = 0
+                for (provider, usage) in usageData.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
+                    // Provider header
+                    let headerItem = NSMenuItem(title: "[\(provider.displayName)]", action: nil, keyEquivalent: "")
+                    headerItem.attributedTitle = NSAttributedString(
+                        string: "[\(provider.displayName)]",
+                        attributes: [.font: NSFont.boldSystemFont(ofSize: NSFont.systemFontSize)]
+                    )
+                    menu.insertItem(headerItem, at: index)
+                    index += 1
+                    
+                    // Usage details
+                    menu.insertItem(NSMenuItem(title: "  Today: \(formatTokens(usage.tokensToday))", action: nil, keyEquivalent: ""), at: index)
+                    index += 1
+                    menu.insertItem(NSMenuItem(title: "  Month: $\(String(format: "%.2f", usage.costThisMonth))", action: nil, keyEquivalent: ""), at: index)
+                    index += 1
+                    
+                    if usage.remainingCredits > 0 {
+                        menu.insertItem(NSMenuItem(title: "  Credits: $\(String(format: "%.2f", usage.remainingCredits))", action: nil, keyEquivalent: ""), at: index)
+                        index += 1
+                    }
+                    
+                    // Separator between providers
+                    if index < usageData.count * 4 {
+                        menu.insertItem(NSMenuItem.separator(), at: index)
+                        index += 1
+                    }
+                }
+                
+                // Update menubar button
+                let totalTokens = usageData.values.reduce(0) { $0 + $1.tokensToday }
+                if let button = statusItem?.button {
+                    button.title = " \(formatTokens(totalTokens, short: true))"
+                }
             }
             
         case .failure(let error):
-            menu.insertItem(NSMenuItem(title: "加载失败: \(error.localizedDescription)", action: nil, keyEquivalent: ""), at: 0)
+            menu.insertItem(NSMenuItem(title: "Error: \(error.localizedDescription)", action: nil, keyEquivalent: ""), at: 0)
+            menu.insertItem(NSMenuItem(title: "→ Check Settings", action: nil, keyEquivalent: ""), at: 1)
+        }
+    }
+    
+    private func formatTokens(_ tokens: Int, short: Bool = false) -> String {
+        if short {
+            if tokens >= 1_000_000 {
+                return String(format: "%.1fM", Double(tokens) / 1_000_000.0)
+            } else if tokens >= 1_000 {
+                return String(format: "%.1fK", Double(tokens) / 1_000.0)
+            } else {
+                return "\(tokens)"
+            }
+        } else {
+            let formatter = NumberFormatter()
+            formatter.numberStyle = .decimal
+            return formatter.string(from: NSNumber(value: tokens)) ?? "\(tokens)"
         }
     }
 }

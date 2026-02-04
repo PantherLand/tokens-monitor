@@ -2,97 +2,196 @@
 //  SettingsView.swift
 //  OpenRouterMonitor
 //
-//  设置界面
+//  Multi-provider settings interface
 //
 
 import SwiftUI
 
 struct SettingsView: View {
-    @State private var apiKey: String = ""
+    @StateObject private var apiManager = MultiProviderAPIManager()
+    @State private var apiKeys: [APIProvider: String] = [:]
     @State private var refreshInterval: Double = 5.0
     @State private var showingSaveAlert = false
-    
-    private let apiManager = OpenRouterAPIManager()
+    @State private var selectedProvider: APIProvider = .openrouter
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Text("OpenRouter Monitor 设置")
-                .font(.title)
-                .padding(.bottom, 10)
-            
-            // API Key 输入
-            VStack(alignment: .leading, spacing: 8) {
-                Text("OpenRouter API Key")
-                    .font(.headline)
-                
-                SecureField("sk-or-v1-...", text: $apiKey)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .frame(maxWidth: .infinity)
-                
-                Text("在 openrouter.ai/keys 获取你的 API Key")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Image(systemName: "chart.bar.fill")
+                    .font(.title2)
+                    .foregroundColor(.blue)
+                Text("Token Monitor Settings")
+                    .font(.title2)
+                    .fontWeight(.semibold)
             }
+            .padding(.top, 20)
+            .padding(.bottom, 10)
             
-            // 刷新间隔
-            VStack(alignment: .leading, spacing: 8) {
-                Text("刷新间隔")
-                    .font(.headline)
-                
-                HStack {
-                    Slider(value: $refreshInterval, in: 1...30, step: 1)
-                    Text("\(Int(refreshInterval)) 分钟")
-                        .frame(width: 60, alignment: .trailing)
+            Divider()
+            
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    // API Providers Section
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("API Providers")
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                        
+                        Text("Configure API keys for the services you want to monitor")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        ForEach(APIProvider.allCases, id: \.self) { provider in
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Image(systemName: getProviderIcon(provider))
+                                        .foregroundColor(getProviderColor(provider))
+                                    Text(provider.displayName)
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                }
+                                
+                                SecureField("API Key", text: binding(for: provider))
+                                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                                
+                                Text(getProviderHint(provider))
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 16)
+                    
+                    Divider()
+                    
+                    // Refresh Settings
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Refresh Interval")
+                            .font(.headline)
+                        
+                        HStack {
+                            Slider(value: $refreshInterval, in: 1...30, step: 1)
+                            Text("\(Int(refreshInterval)) min")
+                                .frame(width: 60, alignment: .trailing)
+                                .font(.subheadline)
+                        }
+                        
+                        Text("How often to update usage statistics")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 16)
                 }
             }
             
-            Spacer()
+            Divider()
             
-            // 保存按钮
-            HStack {
-                Spacer()
-                
-                Button("取消") {
-                    NSApplication.shared.keyWindow?.close()
+            // Action Buttons
+            HStack(spacing: 12) {
+                Button("Cancel") {
+                    closeWindow()
                 }
                 .keyboardShortcut(.cancelAction)
                 
-                Button("保存") {
+                Button("Save") {
                     saveSettings()
                 }
                 .keyboardShortcut(.defaultAction)
+                .buttonStyle(.borderedProminent)
             }
+            .padding()
         }
-        .padding(30)
-        .frame(width: 400, height: 300)
+        .frame(width: 500, height: 600)
         .onAppear {
             loadSettings()
         }
-        .alert("设置已保存", isPresented: $showingSaveAlert) {
-            Button("确定", role: .cancel) {
-                NSApplication.shared.keyWindow?.close()
+        .alert("Settings Saved", isPresented: $showingSaveAlert) {
+            Button("OK", role: .cancel) {
+                closeWindow()
             }
+        } message: {
+            Text("Your API keys and preferences have been saved securely.")
+        }
+    }
+    
+    // MARK: - Helpers
+    
+    private func binding(for provider: APIProvider) -> Binding<String> {
+        return Binding(
+            get: { apiKeys[provider] ?? "" },
+            set: { apiKeys[provider] = $0 }
+        )
+    }
+    
+    private func getProviderIcon(_ provider: APIProvider) -> String {
+        switch provider {
+        case .openrouter: return "arrow.triangle.swap"
+        case .openai: return "brain"
+        case .anthropic: return "cpu"
+        case .google: return "sparkles"
+        }
+    }
+    
+    private func getProviderColor(_ provider: APIProvider) -> Color {
+        switch provider {
+        case .openrouter: return .blue
+        case .openai: return .green
+        case .anthropic: return .orange
+        case .google: return .red
+        }
+    }
+    
+    private func getProviderHint(_ provider: APIProvider) -> String {
+        switch provider {
+        case .openrouter:
+            return "Get your key at openrouter.ai/keys (starts with sk-or-v1-...)"
+        case .openai:
+            return "Get your key at platform.openai.com/api-keys (starts with sk-...)"
+        case .anthropic:
+            return "Get your key at console.anthropic.com (starts with sk-ant-...)"
+        case .google:
+            return "Get your key at makersuite.google.com/app/apikey"
         }
     }
     
     private func loadSettings() {
-        if let savedKey = apiManager.apiKey {
-            apiKey = savedKey
+        // Load API keys from Keychain
+        for provider in APIProvider.allCases {
+            if let key = apiManager.getAPIKey(for: provider) {
+                apiKeys[provider] = key
+            }
         }
         
+        // Load refresh interval from UserDefaults
         if let savedInterval = UserDefaults.standard.object(forKey: "refreshInterval") as? Double {
             refreshInterval = savedInterval
         }
     }
     
     private func saveSettings() {
-        apiManager.apiKey = apiKey.isEmpty ? nil : apiKey
+        // Save API keys to Keychain
+        for provider in APIProvider.allCases {
+            let key = apiKeys[provider]
+            apiManager.setAPIKey(key, for: provider)
+        }
+        
+        // Save refresh interval
         UserDefaults.standard.set(refreshInterval, forKey: "refreshInterval")
         
-        showingSaveAlert = true
-        
-        // 通知 AppDelegate 重新启动刷新定时器
+        // Notify app to refresh
         NotificationCenter.default.post(name: NSNotification.Name("SettingsChanged"), object: nil)
+        
+        showingSaveAlert = true
+    }
+    
+    private func closeWindow() {
+        if let window = NSApp.windows.first(where: { $0.title.contains("Settings") }) {
+            window.close()
+        }
     }
 }
 
