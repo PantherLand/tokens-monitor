@@ -108,7 +108,7 @@ class MultiProviderAPIManager: ObservableObject {
             }
             
             guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200,
-                  let data = data else {
+                  let _ = data else {
                 completion(.failure(NSError(domain: "OpenRouter", code: 500,
                     userInfo: [NSLocalizedDescriptionKey: "Invalid response"])))
                 return

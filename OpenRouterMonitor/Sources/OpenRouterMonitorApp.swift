@@ -33,7 +33,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         
         if let button = statusItem?.button {
-            button.image = NSImage(systemName: "chart.bar.fill", accessibilityDescription: "Token Monitor")
+            button.image = NSImage(systemSymbolName: "chart.bar.fill", accessibilityDescription: "Token Monitor")
             button.action = #selector(showMenu)
             button.target = self
         }
