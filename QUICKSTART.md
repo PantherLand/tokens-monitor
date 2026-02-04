@@ -13,14 +13,14 @@
 ### 2. 安装应用
 
 **下载预编译版本：**
-- 前往 [Releases](https://github.com/yourusername/openrouter-monitor/releases)
+- 前往 [Releases](https://github.com/PantherLand/openrouter-monitor/releases)
 - 下载最新的 `.dmg` 文件
 - 打开 DMG，拖动应用到 Applications 文件夹
 - 右键点击应用，选择"打开"（首次运行需要）
 
 **从源码构建：**
 ```bash
-git clone https://github.com/yourusername/openrouter-monitor.git
+git clone https://github.com/PantherLand/openrouter-monitor.git
 cd openrouter-monitor
 swift build -c release
 ```
@@ -106,9 +106,9 @@ swift build -c release
 
 ## 获取帮助
 
-- 📖 [完整文档](https://github.com/yourusername/openrouter-monitor)
-- 🐛 [报告问题](https://github.com/yourusername/openrouter-monitor/issues)
-- 💬 [讨论区](https://github.com/yourusername/openrouter-monitor/discussions)
+- 📖 [完整文档](https://github.com/PantherLand/openrouter-monitor)
+- 🐛 [报告问题](https://github.com/PantherLand/openrouter-monitor/issues)
+- 💬 [讨论区](https://github.com/PantherLand/openrouter-monitor/discussions)
 
 ## 下一步
 

@@ -22,14 +22,14 @@
 ## 安装
 
 ### 方式一：下载预编译版本
-1. 前往 [Releases](https://github.com/yourusername/openrouter-monitor/releases) 页面
+1. 前往 [Releases](https://github.com/PantherLand/openrouter-monitor/releases) 页面
 2. 下载最新的 `.dmg` 文件
 3. 打开 DMG，将应用拖入 Applications 文件夹
 4. 首次运行时右键点击应用，选择"打开"
 
 ### 方式二：从源码构建
 ```bash
-git clone https://github.com/yourusername/openrouter-monitor.git
+git clone https://github.com/PantherLand/openrouter-monitor.git
 cd openrouter-monitor
 xcodebuild -scheme OpenRouterMonitor -configuration Release
 ```

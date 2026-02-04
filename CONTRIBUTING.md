@@ -6,7 +6,7 @@
 
 ### 报告 Bug
 
-1. 检查 [Issues](https://github.com/yourusername/openrouter-monitor/issues) 确认问题是否已被报告
+1. 检查 [Issues](https://github.com/PantherLand/openrouter-monitor/issues) 确认问题是否已被报告
 2. 创建新 Issue，包含：
    - 清晰的标题和描述
    - 复现步骤
@@ -16,7 +16,7 @@
 
 ### 功能建议
 
-1. 先在 [Discussions](https://github.com/yourusername/openrouter-monitor/discussions) 讨论
+1. 先在 [Discussions](https://github.com/PantherLand/openrouter-monitor/discussions) 讨论
 2. 如果得到认可，创建 Feature Request Issue
 3. 描述功能的用途和预期行为
 
@@ -209,6 +209,6 @@ final class OpenRouterAPIManagerTests: XCTestCase {
 
 ## 问题？
 
-如有疑问，请在 [Discussions](https://github.com/yourusername/openrouter-monitor/discussions) 提问。
+如有疑问，请在 [Discussions](https://github.com/PantherLand/openrouter-monitor/discussions) 提问。
 
 感谢你的贡献！🎉
