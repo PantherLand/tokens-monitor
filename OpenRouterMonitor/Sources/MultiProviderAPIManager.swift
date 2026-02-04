@@ -97,7 +97,11 @@ class MultiProviderAPIManager: ObservableObject {
     
     private func fetchOpenRouterUsage(apiKey: String, completion: @escaping (Result<UsageData, Error>) -> Void) {
         // Demo mode: return mock data if API key looks like demo
-        if apiKey.contains("demo") || apiKey.contains("test") {
+        let isDemoMode = apiKey.lowercased().contains("demo") || 
+                        apiKey.lowercased().contains("test") || 
+                        apiKey.count < 20 // Short keys are likely demo
+        
+        if isDemoMode {
             let usage = UsageData(
                 provider: .openrouter,
                 tokensToday: 12_450,
@@ -147,7 +151,11 @@ class MultiProviderAPIManager: ObservableObject {
     
     private func fetchOpenAIUsage(apiKey: String, completion: @escaping (Result<UsageData, Error>) -> Void) {
         // Demo mode
-        if apiKey.contains("demo") || apiKey.contains("test") {
+        let isDemoMode = apiKey.lowercased().contains("demo") || 
+                        apiKey.lowercased().contains("test") || 
+                        apiKey.count < 20
+        
+        if isDemoMode {
             let usage = UsageData(
                 provider: .openai,
                 tokensToday: 8_920,
@@ -177,7 +185,11 @@ class MultiProviderAPIManager: ObservableObject {
     
     private func fetchAnthropicUsage(apiKey: String, completion: @escaping (Result<UsageData, Error>) -> Void) {
         // Demo mode
-        if apiKey.contains("demo") || apiKey.contains("test") {
+        let isDemoMode = apiKey.lowercased().contains("demo") || 
+                        apiKey.lowercased().contains("test") || 
+                        apiKey.count < 20
+        
+        if isDemoMode {
             let usage = UsageData(
                 provider: .anthropic,
                 tokensToday: 4_560,
@@ -207,7 +219,11 @@ class MultiProviderAPIManager: ObservableObject {
     
     private func fetchGoogleUsage(apiKey: String, completion: @escaping (Result<UsageData, Error>) -> Void) {
         // Demo mode
-        if apiKey.contains("demo") || apiKey.contains("test") {
+        let isDemoMode = apiKey.lowercased().contains("demo") || 
+                        apiKey.lowercased().contains("test") || 
+                        apiKey.count < 20
+        
+        if isDemoMode {
             let usage = UsageData(
                 provider: .google,
                 tokensToday: 15_230,
