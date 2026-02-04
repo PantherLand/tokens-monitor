@@ -1,100 +1,165 @@
 # OpenRouter Monitor
 
-<img src="assets/icon.png" alt="OpenRouter Monitor" width="128"/>
+<p align="center">
+  <img src="assets/icon.png" alt="OpenRouter Monitor" width="128"/>
+</p>
 
-一个轻量级的 macOS 菜单栏应用，用于实时监控 OpenRouter API token 使用量。
+<p align="center">
+  🔄 A lightweight macOS menubar app for monitoring OpenRouter API token usage in real-time
+</p>
 
-## 功能特性
+<p align="center">
+  <a href="https://github.com/PantherLand/tokens-monitor/releases"><img src="https://img.shields.io/github/v/release/PantherLand/tokens-monitor?include_prereleases" alt="Release"></a>
+  <a href="https://github.com/PantherLand/tokens-monitor/blob/main/LICENSE"><img src="https://img.shields.io/github/license/PantherLand/tokens-monitor" alt="License"></a>
+  <a href="https://github.com/PantherLand/tokens-monitor/stargazers"><img src="https://img.shields.io/github/stars/PantherLand/tokens-monitor" alt="Stars"></a>
+</p>
 
-- 🔄 实时显示 token 使用量
-- 📊 支持多模型使用统计
-- 💰 显示当前费用和剩余额度
-- ⚙️ 简洁的配置界面
-- 🎨 原生 macOS 菜单栏体验（类似 ClashX）
-- 🔐 本地安全存储 API Key
+## ✨ Features
 
-## 系统要求
+- 🔄 Real-time token usage display
+- 📊 Multi-model usage statistics
+- 💰 Cost tracking and remaining credits
+- ⚙️ Clean, native macOS menubar experience (ClashX-style)
+- 🔐 Secure API key storage with macOS Keychain
+- 🎨 Native design with dark mode support
 
-- macOS 10.15 (Catalina) 或更高版本
-- Swift 5.0+
-- Xcode 13.0+
+## 📸 Screenshots
 
-## 安装
+<img src="assets/screenshot.png" alt="Screenshot" width="400"/>
 
-### 方式一：下载预编译版本
-1. 前往 [Releases](https://github.com/PantherLand/openrouter-monitor/releases) 页面
-2. 下载最新的 `.dmg` 文件
-3. 打开 DMG，将应用拖入 Applications 文件夹
-4. 首次运行时右键点击应用，选择"打开"
+## 🚀 Quick Start
 
-### 方式二：从源码构建
+### Installation
+
+**Option 1: Download Pre-built Binary**
+1. Go to [Releases](https://github.com/PantherLand/tokens-monitor/releases)
+2. Download the latest `.dmg` file
+3. Open DMG and drag the app to Applications folder
+4. Right-click the app and select "Open" (first launch only)
+
+**Option 2: Build from Source**
 ```bash
-git clone https://github.com/PantherLand/openrouter-monitor.git
-cd openrouter-monitor
-xcodebuild -scheme OpenRouterMonitor -configuration Release
+# Clone the repository
+git clone https://github.com/PantherLand/tokens-monitor.git
+cd tokens-monitor
+
+# Run the app
+make run
+
+# Or build for release
+make build
 ```
 
-## 使用方法
+### First-time Setup
 
-1. **首次配置**
-   - 启动应用后，点击菜单栏图标
-   - 选择"设置"
-   - 输入你的 OpenRouter API Key
-   - 设置刷新间隔（默认 5 分钟）
+1. Launch the app - you'll see a 📊 icon in your menubar
+2. Click the icon → "Settings..."
+3. Paste your OpenRouter API Key
+4. Set refresh interval (default: 5 minutes)
+5. Click "Save"
 
-2. **查看使用量**
-   - 点击菜单栏图标即可查看：
-     - 今日总使用 tokens
-     - 按模型分类的使用量
-     - 当前费用
-     - 剩余额度
+### Get Your OpenRouter API Key
 
-3. **刷新数据**
-   - 点击"立即刷新"手动更新数据
-   - 或等待自动刷新
+1. Visit [OpenRouter](https://openrouter.ai/)
+2. Sign in to your account
+3. Go to [API Keys](https://openrouter.ai/keys)
+4. Create a new API Key
+5. Copy and paste it into the app settings
 
-## OpenRouter API Key 获取
+## 🛠️ Development
 
-1. 访问 [OpenRouter](https://openrouter.ai/)
-2. 登录你的账户
-3. 前往 [API Keys](https://openrouter.ai/keys) 页面
-4. 创建新的 API Key
-5. 复制 Key 并粘贴到应用设置中
+### Prerequisites
 
-## 安全性
+- macOS 10.15 (Catalina) or later
+- Xcode 13.0+
+- Swift 5.0+
 
-- API Key 使用 macOS Keychain 安全存储
-- 所有数据仅在本地处理
-- 不会上传任何信息到第三方服务器
+### Build Commands
 
-## 截图
+```bash
+# Install dependencies (if any)
+make install
 
-<img src="assets/screenshot.png" alt="应用截图" width="400"/>
+# Run in development mode
+make run
 
-## 技术栈
+# Build for release
+make build
 
-- Swift 5
-- SwiftUI
-- Combine
-- URLSession (OpenRouter API 调用)
-- Keychain (安全存储)
+# Run tests
+make test
 
-## 开发计划
+# Clean build artifacts
+make clean
 
-- [ ] 支持历史使用趋势图表
-- [ ] 使用量警报功能
-- [ ] 支持多账户切换
-- [ ] 导出使用报告
-- [ ] 深色/浅色主题自动切换
+# Format code
+make format
 
-## 贡献
+# Show help
+make help
+```
 
-欢迎提交 Issue 和 Pull Request！
+### Project Structure
 
-## 许可证
+```
+tokens-monitor/
+├── OpenRouterMonitor/
+│   ├── Sources/
+│   │   ├── OpenRouterMonitorApp.swift    # Main app entry
+│   │   ├── OpenRouterAPIManager.swift    # API client & Keychain
+│   │   └── SettingsView.swift            # Settings UI
+│   ├── Resources/                        # Assets & icons
+│   └── Info.plist
+├── Makefile                              # Build automation
+├── Package.swift                         # SPM configuration
+└── docs/                                 # Documentation
+```
 
-MIT License - 详见 [LICENSE](LICENSE) 文件
+## 📖 Documentation
 
-## 致谢
+- 🚀 [Quick Start Guide](QUICKSTART.md)
+- 🔧 [Build Instructions](BUILD.md)
+- 💻 [Development Guide](DEVELOPMENT.md)
+- 🗺️ [Roadmap](ROADMAP.md)
+- 🤝 [Contributing](CONTRIBUTING.md)
 
-灵感来源于 [ClashX](https://github.com/yichengchen/clashX)
+## 🔒 Security
+
+- API keys are stored securely in macOS Keychain
+- All data is processed locally
+- No telemetry or third-party data collection
+- Open source - audit the code yourself
+
+## 🤝 Contributing
+
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+
+### How to Contribute
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📝 Changelog
+
+See [Releases](https://github.com/PantherLand/tokens-monitor/releases) for version history.
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- Inspired by [ClashX](https://github.com/yichengchen/clashX)
+- Built with Swift and SwiftUI
+- Powered by [OpenRouter](https://openrouter.ai/)
+
+## ⭐ Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=PantherLand/tokens-monitor&type=Date)](https://star-history.com/#PantherLand/tokens-monitor&Date)
+
+---
+
+<p align="center">Made with ❤️ for the OpenRouter community</p>
