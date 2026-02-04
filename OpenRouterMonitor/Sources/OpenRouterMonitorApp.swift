@@ -23,6 +23,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem?
     var apiManager: MultiProviderAPIManager?
     var settingsWindowController: NSWindowController? // Keep reference to prevent deallocation
+    var detailWindowController: NSWindowController? // Detail view window
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Hide from Dock
@@ -133,6 +134,33 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     
+    @objc func showProviderDetail(_ sender: NSMenuItem) {
+        guard let dict = sender.representedObject as? [String: Any],
+              let provider = dict["provider"] as? APIProvider,
+              let usage = dict["usage"] as? UsageData else {
+            return
+        }
+        showDetailView(provider: provider, usage: usage)
+    }
+    
+    func showDetailView(provider: APIProvider, usage: UsageData) {
+        detailWindowController?.close()
+        
+        let detailView = UsageDetailView(provider: provider, usage: usage)
+        let hostingController = NSHostingController(rootView: detailView)
+        
+        let window = NSWindow(contentViewController: hostingController)
+        window.title = "\(provider.displayName) Usage Details"
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+        window.center()
+        
+        detailWindowController = NSWindowController(window: window)
+        detailWindowController?.showWindow(nil)
+        
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+    }
+    
     @objc func quit() {
         NSApplication.shared.terminate(nil)
     }
@@ -180,8 +208,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             } else {
                 var index = 0
                 for (provider, usage) in usageData.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
-                    // Provider header
-                    let headerItem = NSMenuItem(title: "[\(provider.displayName)]", action: nil, keyEquivalent: "")
+                    // Provider header - clickable to show details
+                    let headerItem = NSMenuItem(title: "[\(provider.displayName)] - View Details", action: #selector(showProviderDetail(_:)), keyEquivalent: "")
+                    headerItem.target = self
+                    headerItem.representedObject = ["provider": provider, "usage": usage] as [String : Any]
                     headerItem.attributedTitle = NSAttributedString(
                         string: "[\(provider.displayName)]",
                         attributes: [.font: NSFont.boldSystemFont(ofSize: NSFont.systemFontSize)]
