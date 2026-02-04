@@ -96,13 +96,13 @@ class MultiProviderAPIManager: ObservableObject {
     // MARK: - Provider-Specific Implementations
     
     private func fetchOpenRouterUsage(apiKey: String, completion: @escaping (Result<UsageData, Error>) -> Void) {
-        let url = URL(string: "\(APIProvider.openrouter.baseURL)/auth/key")!
+        let url = URL(string: "\(APIProvider.openrouter.baseURL)/usage")!
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.timeoutInterval = 10
         
-        print("[OpenRouter] Fetching usage data...")
+        print("[OpenRouter] Fetching usage data from /usage endpoint...")
         
         URLSession.shared.dataTask(with: request) { data, response, error in
             if let error = error {
@@ -141,12 +141,16 @@ class MultiProviderAPIManager: ObservableObject {
             }
             
             do {
-                let response = try JSONDecoder().decode(OpenRouterKeyResponse.self, from: data)
-                let usage = self.convertOpenRouterResponse(response)
-                print("[OpenRouter] Success: \(usage.tokensToday) tokens today")
+                let response = try JSONDecoder().decode(OpenRouterUsageResponse.self, from: data)
+                let usage = self.convertOpenRouterUsageResponse(response)
+                print("[OpenRouter] Success: $\(usage.costThisMonth) this month, \(usage.tokensToday) tokens today")
                 completion(.success(usage))
             } catch {
                 print("[OpenRouter] Parse error: \(error)")
+                // Try to decode as generic JSON to see structure
+                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                    print("[OpenRouter] Response structure: \(json)")
+                }
                 // Return empty data instead of failing
                 let emptyUsage = UsageData(
                     provider: .openrouter,
@@ -161,21 +165,28 @@ class MultiProviderAPIManager: ObservableObject {
         }.resume()
     }
     
-    private func convertOpenRouterResponse(_ response: OpenRouterKeyResponse) -> UsageData {
-        // Extract actual data from OpenRouter response
-        let limit = response.data?.limit ?? 0.0
-        let usage = response.data?.usage ?? 0.0
-        let remaining = max(0, limit - usage)
+    private func convertOpenRouterUsageResponse(_ response: OpenRouterUsageResponse) -> UsageData {
+        let totalCost = response.data?.totalCost ?? 0.0
         
-        // For now, we can't get daily breakdown from this endpoint
-        // Would need to call /api/v1/generation endpoint for detailed usage
+        // Calculate tokens from cost (rough estimate: $0.01 per 1000 tokens average)
+        let estimatedTokens = Int(totalCost * 100_000)
+        
+        // Get model breakdown
+        let modelBreakdown = (response.data?.usage ?? []).map { item in
+            ModelUsage(
+                model: item.model ?? "unknown",
+                tokens: item.requests ?? 0,
+                cost: item.cost ?? 0.0
+            )
+        }
+        
         return UsageData(
             provider: .openrouter,
-            tokensToday: 0, // TODO: Need different endpoint
-            tokensThisMonth: Int(usage * 1000), // Rough estimate
-            costThisMonth: usage,
-            remainingCredits: remaining,
-            modelBreakdown: []
+            tokensToday: estimatedTokens, // Can't separate daily from monthly
+            tokensThisMonth: estimatedTokens,
+            costThisMonth: totalCost,
+            remainingCredits: 0.0, // /usage doesn't return credits
+            modelBreakdown: modelBreakdown
         )
     }
     
@@ -225,29 +236,25 @@ class MultiProviderAPIManager: ObservableObject {
 
 // MARK: - OpenRouter API Response Models
 
-struct OpenRouterKeyResponse: Codable {
-    let data: OpenRouterKeyData?
+struct OpenRouterUsageResponse: Codable {
+    let data: OpenRouterUsageData?
 }
 
-struct OpenRouterKeyData: Codable {
-    let label: String?
-    let usage: Double? // Total usage in dollars
-    let limit: Double? // Credit limit
-    let isFreeTier: Bool?
-    let rateLimit: OpenRouterRateLimit?
+struct OpenRouterUsageData: Codable {
+    let totalCost: Double?
+    let usage: [OpenRouterModelUsage]?
     
     enum CodingKeys: String, CodingKey {
-        case label
+        case totalCost = "total_cost"
         case usage
-        case limit
-        case isFreeTier = "is_free_tier"
-        case rateLimit = "rate_limit"
     }
 }
 
-struct OpenRouterRateLimit: Codable {
+struct OpenRouterModelUsage: Codable {
+    let model: String?
     let requests: Int?
-    let interval: String?
+    let cost: Double?
+    let tokens: Int?
 }
 
 // MARK: - Keychain Helper
