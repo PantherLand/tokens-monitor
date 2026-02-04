@@ -196,3 +196,10 @@
 **项目仓库:** https://github.com/PantherLand/tokens-monitor  
 **负责人:** @fiowind  
 **协作者:** 欢迎加入！
+
+### 2026-02-04 (Evening Update)
+- ✅ 修复设置窗口不显示的 bug
+- ✅ 添加多 API 提供商支持 (OpenRouter, OpenAI, Anthropic, Google)
+- ✅ 实现详细使用统计视图（参考 OpenClaw 设计）
+- ✅ 添加进度条、趋势图表、模型分解
+- ✅ 支持点击查看详细统计
