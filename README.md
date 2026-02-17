@@ -152,7 +152,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
-- Inspired by [ClashX](https://github.com/yichengchen/clashX)
 - Built with Swift and SwiftUI
 - Powered by [OpenRouter](https://openrouter.ai/)
 

@@ -156,7 +156,6 @@ tokens-monitor/
 
 ## 🙏 致谢
 
-- 灵感来源于 [ClashX](https://github.com/yichengchen/clashX)
 - 使用 Swift 和 SwiftUI 构建
 - 由 [OpenRouter](https://openrouter.ai/) 提供支持
 

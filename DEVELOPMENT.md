@@ -380,7 +380,6 @@ print("Debug: API Response = \(response)")
 - [AppKit](https://developer.apple.com/documentation/appkit/)
 
 ### 相关项目
-- [ClashX](https://github.com/yichengchen/clashX) - 菜单栏应用参考
 - [OpenRouter](https://openrouter.ai/docs) - API 文档
 
 ### 工具
